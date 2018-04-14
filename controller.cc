@@ -1,4 +1,5 @@
 #include <iostream>
+#include <math.h>
 
 #include "controller.hh"
 #include "timestamp.hh"
@@ -7,7 +8,13 @@ using namespace std;
 
 /* Default constructor */
 Controller::Controller( const bool debug )
-  : debug_( debug ), cur_window_size(25), packet_counter(0), last_rtt(125), packet_increment_count(0)
+  : debug_( debug ),
+  cur_window_size(10),
+  packet_counter(0),
+  // last_rtt(125),
+  // packet_increment_count(0),
+  timeouts(0),
+  num_datagrams_sent(0)
 {}
 
 /* Get current window size, in datagrams */
@@ -31,9 +38,11 @@ void Controller::datagram_was_sent( const uint64_t sequence_number,
 				    const bool after_timeout
 				    /* datagram was sent because of a timeout */ )
 {
+  num_datagrams_sent++;
   /* Default: take no action */
   if (after_timeout) {
-    cur_window_size /= 3;
+    timeouts++;
+    // cur_window_size /= 3;
   }
   if ( debug_ ) {
     cerr << "At time " << send_timestamp
@@ -51,27 +60,41 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
 			       const uint64_t timestamp_ack_received )
                                /* when the ack was received (by sender) */
 {
-  /* Default: take no action */
-  const uint64_t cur_rtt = timestamp_ack_received - send_timestamp_acked;
-  if (packet_counter >= cur_window_size) {
-    const uint64_t threshold = 125;
-    if (cur_rtt >= threshold) {
-      cur_window_size = cur_window_size * 2 / 3;
-      // const float base_rate = 2.0 / 3.0;
-      // const float change_rate = base_rate / ((float)cur_rtt / (float)last_rtt);
-      // cur_window_size = (uint64_t)(cur_window_size * min(change_rate, base_rate));
-    } else {
-      // if (packet_increment_count >= 1) {
-      cur_window_size += 1;
-        // packet_increment_count = 0;
-      // } else {
-        // packet_increment_count += 1;
-      // }
-    }
+  float lambda = (float) timeouts / num_datagrams_sent * 100;
+  if (1 - exp(-lambda) > 0.01) {
+    cur_window_size = cur_window_size / 2;
     packet_counter = 0;
   } else {
-    packet_counter += 1;
+    if (packet_counter >= cur_window_size) {
+      cur_window_size++;
+      packet_counter = 0;
+    } else {
+      packet_counter++;
+    }
   }
+
+
+  /* Default: take no action */
+  // const uint64_t cur_rtt = timestamp_ack_received - send_timestamp_acked;
+  // if (packet_counter >= cur_window_size) {
+  //   const uint64_t threshold = 125;
+  //   // if (cur_rtt >= threshold) {
+  //     // cur_window_size = cur_window_size * 2 / 3;
+  //     const float base_rate = 2.0 / 3.0;
+  //     const float change_rate = base_rate * (1 - (float)cur_rtt / (float)last_rtt);
+  //     // cur_window_size = (uint64_t)(cur_window_size * min(change_rate, base_rate));
+  //   } else {
+  //     // if (packet_increment_count >= 1) {
+  //     cur_window_size += 1;
+  //       // packet_increment_count = 0;
+  //     // } else {
+  //       // packet_increment_count += 1;
+  //     // }
+  //   }
+  //   packet_counter = 0;
+  // } else {
+  //   packet_counter += 1;
+  // }
   // last_rtt = cur_rtt;
 
   if ( debug_ ) {
@@ -87,5 +110,5 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
    before sending one more datagram */
 unsigned int Controller::timeout_ms()
 {
-  return 500; /* timeout of one second */
+  return 1000; /* timeout of one second */
 }
