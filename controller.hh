@@ -11,8 +11,7 @@ private:
   bool debug_; /* Enables debugging output */
   unsigned int cur_window_size;
   unsigned int packet_counter;
-  uint64_t last_rtt;
-  unsigned int packet_increment_count;
+  uint64_t max_rtt;
 
   /* Add member variables here */
 

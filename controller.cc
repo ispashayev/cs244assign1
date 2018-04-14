@@ -7,7 +7,7 @@ using namespace std;
 
 /* Default constructor */
 Controller::Controller( const bool debug )
-  : debug_( debug ), cur_window_size(25), packet_counter(0), last_rtt(125), packet_increment_count(0)
+  : debug_( debug ), cur_window_size(10), packet_counter(0), max_rtt(500)
 {}
 
 /* Get current window size, in datagrams */
@@ -54,25 +54,19 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
   /* Default: take no action */
   const uint64_t cur_rtt = timestamp_ack_received - send_timestamp_acked;
   if (packet_counter >= cur_window_size) {
-    const uint64_t threshold = 125;
+    const uint64_t threshold = 130;
     if (cur_rtt >= threshold) {
       cur_window_size = cur_window_size * 2 / 3;
-      // const float base_rate = 2.0 / 3.0;
-      // const float change_rate = base_rate / ((float)cur_rtt / (float)last_rtt);
-      // cur_window_size = (uint64_t)(cur_window_size * min(change_rate, base_rate));
     } else {
-      // if (packet_increment_count >= 1) {
-      cur_window_size += 1;
-        // packet_increment_count = 0;
-      // } else {
-        // packet_increment_count += 1;
-      // }
+      if (cur_rtt <= max_rtt * 5 / 10) {
+        cur_window_size += 1;
+      }
     }
     packet_counter = 0;
   } else {
     packet_counter += 1;
   }
-  // last_rtt = cur_rtt;
+  max_rtt = max(max_rtt, cur_rtt);
 
   if ( debug_ ) {
     cerr << "At time " << timestamp_ack_received
@@ -87,5 +81,5 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
    before sending one more datagram */
 unsigned int Controller::timeout_ms()
 {
-  return 500; /* timeout of one second */
+  return 250; /* timeout of one second */
 }
